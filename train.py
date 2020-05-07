@@ -9,8 +9,8 @@ import torch.nn as nn
 import torch.optim as optim
 from torchvision import transforms
 
-from data_utils import get_dataloader
-import models
+import data_utils
+from models import densenet, resnet, vanilla
 
 def evaluation(model, test_loader, criterion):
     model.eval()
@@ -40,7 +40,8 @@ def main(args):
     torch.cuda.manual_seed(0)
     torch.cuda.set_device(args.gpu_idx)
 
-    out_file = os.path.join(args.output_dir, '{}_{}.pth'.format(args.net_type, args.dataset))
+    out_file = os.path.join(args.output_dir, '{}_{}.pth'.format(args.net_type, 
+                                                                args.dataset))
     
     # set the transformations for training
     tfs_for_augmentation = [
@@ -68,24 +69,30 @@ def main(args):
     # load model
     if args.net_type == 'densenet':
         if args.dataset == 'svhn':
-            model = models.DenseNet3(100, args.num_classes, growth_rate=12, dropRate=0.2)    
+            model = densenet.DenseNet3(100, args.num_classes,
+                                       growth_rate=12, dropRate=0.2)    
         else:
-            model = models.DenseNet3(100, args.num_classes, growth_rate=12)    
+            model = densenet.DenseNet3(100, args.num_classes, growth_rate=12)    
     elif args.net_type == 'resnet':
-        model = models.ResNet34(num_c=args.num_classes)
+        model = resnet.ResNet34(num_c=args.num_classes)
     elif args.net_type == 'vanilla':
-        model = models.VanillaCNN(args.num_classes)
+        model = vanilla.VanillaCNN(args.num_classes)
     model.cuda()
     print('load model: ' + args.net_type)
 
     # load dataset
     print('load target data: ' + args.dataset)
     if args.dataset == 'svhn':
-        train_loader, valid_loader = get_dataloader(
-            args.dataset, args.data_root, 'train', train_transform, args.batch_size, valid_transform=test_transform)
+        train_loader, valid_loader = data_utils.get_dataloader(
+            args.dataset, args.data_root, 'train', train_transform, 
+            args.batch_size, valid_transform=test_transform)
     else:
-        train_loader = get_dataloader(args.dataset, args.data_root, 'train', train_transform, args.batch_size)
-    test_loader = get_dataloader(args.dataset, args.data_root, 'test', test_transform, args.batch_size)
+        train_loader = data_utils.get_dataloader(
+            args.dataset, args.data_root, 'train', 
+            train_transform, args.batch_size)
+    test_loader = data_utils.get_dataloader(
+        args.dataset, args.data_root, 'test', 
+        test_transform, args.batch_size)
 
     # define objective and optimizer
     criterion = nn.CrossEntropyLoss()
@@ -100,8 +107,10 @@ def main(args):
     if args.dataset == 'svhn' or args.net_type == 'vanilla':
         milestones = [20, 30]
 
-    optimizer = optim.SGD(model.parameters(), lr=0.1, momentum=0.9, weight_decay=weight_decay)
-    scheduler = optim.lr_scheduler.MultiStepLR(optimizer, milestones, gamma=gamma)
+    optimizer = optim.SGD(model.parameters(), lr=0.1, 
+                          momentum=0.9, weight_decay=weight_decay)
+    scheduler = optim.lr_scheduler.MultiStepLR(optimizer, milestones, 
+                                               gamma=gamma)
 
     # train
     best_loss = np.inf
@@ -109,7 +118,7 @@ def main(args):
     for epoch in range(args.num_epochs):
         model.train()
         total, total_loss, total_step = 0, 0, 0
-        for itr, (data, labels) in enumerate(train_loader):
+        for _, (data, labels) in enumerate(train_loader):
             data = data.cuda()
             labels = labels.cuda()
             total += data.size(0)

@@ -1,6 +1,6 @@
 import pycuda.autoinit
 import pycuda.driver
-from pycuda.compiler import SourceModule
+import pycuda.compiler
 
 class Holder(pycuda.driver.PointerHolderBase):
     """ This class is from
@@ -44,13 +44,14 @@ def get_LZW_NCD(x, y, num_levels=4):
     dz = int(min(num_filters, max_dz, int(max_threads // (dx * dy))))
 
     bdim = (dx, dy, dz)
-    gdim = tuple([w // dw + (w % dw > 0) for w, dw in zip((x.size(0), y.size(0), num_filters), bdim)])
+    bnum = (x.size(0), y.size(0), num_filters)
+    gdim = tuple([w // dw + (w % dw > 0) for w, dw in zip(bnum, bdim)])
     if gdim[0] > max_gdx or gdim[1] > max_gdy or gdim[2] > max_gdz:
-        raise "Check grid dimension"
+        raise ValueError("Check the grid dimension")
     
     max_set_size = get_max_set_size(int(2 * len_states), num_levels)
     
-    mod = SourceModule("""
+    mod = pycuda.compiler.SourceModule("""
     __device__ void get_LZW_complexity(int *x, int *y, int& c_x, int& c_xy)
     {
         int LZWset[%(MAX_SET_SIZE)s * %(NUM_LEVELS)s] = {0, };
@@ -99,8 +100,8 @@ def get_LZW_NCD(x, y, num_levels=4):
         get_LZW_complexity(&y[(idy * %(NUM_FILTERS)s + idz) * %(LEN_STATES)s],
                           &x[(idx * %(NUM_FILTERS)s + idz) * %(LEN_STATES)s],
                           c_y, c_yx);
-        float dist = (float) (min(c_xy, c_yx) - min(c_x, c_y)) / (float) max(c_x, c_y);
-        ret[(idx * %(NUM_B)s + idy) * %(NUM_FILTERS)s + idz] = dist;
+        float ncd = (float) (min(c_xy, c_yx) - min(c_x, c_y)) / (float) max(c_x, c_y);
+        ret[(idx * %(NUM_B)s + idy) * %(NUM_FILTERS)s + idz] = ncd;
     }
 
     """ % {

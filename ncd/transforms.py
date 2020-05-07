@@ -94,14 +94,19 @@ def lloyd_max_quantizer(x, num_levels=4, max_iter=500, tol=1e-5):
     # initialization
     minimums = x.min(dim=1)[0].unsqueeze(1)
     scale = x.max(dim=1)[0].unsqueeze(1) - minimums
-    reps = torch.cat([minimums + (i+1/2) / num_levels * scale for i in range(num_levels)], dim=1)
+    reps = torch.cat([minimums + (i+1/2) / num_levels * scale 
+                      for i in range(num_levels)], dim=1)
 
     old_error = None
-    for t in range(max_iter):
-        temp_errors, temp_indices = (x.unsqueeze(2) - reps.unsqueeze(1)).pow(2).min(2)
+    for _ in range(max_iter):
+        temp_errors, temp_indices = (
+            x.unsqueeze(2) - reps.unsqueeze(1)
+        ).pow(2).min(2)
 
         new_reps = torch.zeros_like(reps).scatter_add_(1, temp_indices, x)
-        normalizer = torch.zeros_like(reps).scatter_add_(1, temp_indices, torch.ones_like(temp_indices, dtype=x.dtype))
+        normalizer = torch.zeros_like(reps).scatter_add_(
+            1, temp_indices, torch.ones_like(temp_indices, dtype=x.dtype)
+        )
         normalizer[normalizer==0] += 1e-15
 
         reps = new_reps / normalizer

@@ -28,7 +28,7 @@ class Detector(nn.Module):
         pass
 
     @abc.abstractmethod
-    def _get_ood_scores(self):
+    def _get_ood_scores(self, x):
         pass
 
 
@@ -50,7 +50,7 @@ class Hook():
 def get_scores(detector, dataloader, num_samples=np.inf):
     ood_scores = []
     total = 0
-    for data, target in dataloader:
+    for data, _ in dataloader:
         data = data.cuda()
         total += data.size(0)
         _, scores = detector(data)
